@@ -4,8 +4,9 @@
 
 // Initialize the I/O pins and set up the controller for the desired mode.
 //	TODO:
-//		This function is hard coded to configure controller for analog full mode.
+//		This function is hard coded to configure controller for analog mode.
 //		Must also implement input parameters to choose what mode to use.
+// 		If you want digital mode or analog mode with all pressures then use reInitController()
 //	Inputs:
 // 			--!! NOTE !!-- wiringPiSetupPhys(), wiringPiSetupGpio() OR wiringPiSetup()
 // 				should be called first. The following pins refer to either the gpio or the 
@@ -15,9 +16,8 @@
 //  	_clkPin		- The RPi pin that is connected to the CLOCK line of PS2 remote
 // 		_attnPin	- The RPi pin that is connected to the ATTENTION line of PS2 remote
 //	Returns:
-//		0 -		Config success.
-//		1 - 	Controller is in unknown mode or no controller found.
-//		2 - 	Controller can be read but will not accept commands.
+//		1 -		Config success.
+//		0 - 	Controller is not responding.
 unsigned char PIPS2::initializeController(int _commandPin, int _dataPin, int _clkPin, int _attnPin)
 {
 	
@@ -27,6 +27,7 @@ unsigned char PIPS2::initializeController(int _commandPin, int _dataPin, int _cl
 	clkPin = _clkPin;
 	attnPin = _attnPin;
 	readDelay = 1;
+	controllerMode = ANALOGMODE;
 	// Set command pin to output
 	pinMode(commandPin, OUTPUT);
 	// Set data pin to input
@@ -43,51 +44,43 @@ unsigned char PIPS2::initializeController(int _commandPin, int _dataPin, int _cl
 	// Read controller a few times to check if it is talking.
 	readPS2();	
 	readPS2();
-	// See if controller responded.
-	if(PS2data[1] != DIGITALMODE && PS2data[1] != ANALOGMODE && PS2data[1] != DS2NATIVEMODE)
-	{
-		// Mode is unknown or controller unresponsive.
-		return 1;
-	}
 	
 	// Initialize the read delay to be 1 millisecond. 
 	// Increment read_delay until controller accepts commands.
 	// This is a but of dynamic debugging. Read delay usually needs to be about 2.
 	// But for some controllers, especially wireless ones it needs to be a bit higher.
 	
-	// Try up until readDelay = 10
-	for (int i = 0; i <= 10; i++)
+	// Try up until readDelay = MAX_READ_DELAY
+	while (1)
 	{
 		// Transmit the enter config command.
 		transmitCmdString(enterConfigMode, sizeof(enterConfigMode));
 		
 		// Set mode to analog mode and lock it there.
 		transmitCmdString(set_mode_analog_lock, sizeof(set_mode_analog_lock));
-		
+		//delay(CMD_DELAY);
 		// Return all pressures
 		//transmitCmdString(config_AllPressure, sizeof(config_AllPressure));
-		// Exit config mode.
-
-		
+		// Exit config mode.	
 		transmitCmdString(exitConfigMode, sizeof(exitConfigMode));
 		
 		// Attempt to read the controller.
 		readPS2();
 		
-		// If read was successful (contorller indicates it is in analog mode), break this config loop.
-		if(PS2data[1] == ANALOGMODE)
+		// If read was successful (controller indicates it is in analog mode), break this config loop.
+		if(PS2data[1] == controllerMode)
 		break;
 	
 		// If we have tried and failed 10 times. call it quits,
-		if (i == 10)
+		if (readDelay == MAX_READ_DELAY)
 		{
-			return 2;
+			return 0;
 		}
 		
 		// Otherwise increment the read delay and go for another loop
-		readDelay += 1;	
+		readDelay++;	
 	}
-	return 0;
+	return 1;
 }
 
 // Bit bang a single byte.
@@ -202,8 +195,8 @@ void PIPS2::readPS2(void)
 
 // Re-Initialize the I/O pins and set up the controller for the desired mode.
 //	TODO:
-//		This function is hard coded to configure controller for analog full mode.
-//		Must also implement input parameters to choose what mode to use.
+//		Currently this function is only coded for either analog mode without all pressures
+// 		returned or analog mode with all pressures. Need to implement digital.
 //	Inputs:
 // 			--!! NOTE !!-- wiringPiSetupPhys(), wiringPiSetupGpio() OR wiringPiSetup()
 // 				should be called first. The following pins refer to either the gpio or the 
@@ -212,15 +205,36 @@ void PIPS2::readPS2(void)
 //  	_dataPin	- The RPi pin that is connected to the DATA line of PS2 remote
 //  	_clkPin		- The RPi pin that is connected to the CLOCK line of PS2 remote
 // 		_attnPin	- The RPi pin that is connected to the ATTENTION line of PS2 remote
-unsigned char PIPS2::reInitializeController(void)
+//
+// Returns:
+// 		 1 			- Success!
+// 		-1 			- Invalid mode!
+// 		-2 			- Failed to get controller into desired mode in less than MAX_INIT_ATTEMPT attempts
+int PIPS2::reInitializeController(char _controllerMode)
 {
-	transmitCmdString(enterConfigMode, sizeof(enterConfigMode));
-	transmitCmdString(set_mode_analog_lock, sizeof(set_mode_analog_lock));
-	transmitCmdString(config_AllPressure, sizeof(config_AllPressure));
-	transmitCmdString(exitConfigMode, sizeof(exitConfigMode));
+	controllerMode = _controllerMode;
+	if (controllerMode != ANALOGMODE && controllerMode != ALLPRESSUREMODE)
+		return -1;
+	
+	for (int initAttempts = 1; initAttempts < MAX_INIT_ATTEMPT; initAttempts++)	
+	{
+		transmitCmdString(enterConfigMode, sizeof(enterConfigMode));
+		transmitCmdString(set_mode_analog_lock, sizeof(set_mode_analog_lock));
+		if (controllerMode == ALLPRESSUREMODE)
+			transmitCmdString(config_AllPressure, sizeof(config_AllPressure));
+		transmitCmdString(exitConfigMode, sizeof(exitConfigMode));
+		readPS2();
+		if (PS2data[1] == controllerMode)
+			return 1;
+		delay(readDelay);
+	}
+	return -2;
 }
 
-
+int PIPS2::reInitializeController()
+{
+	return PIPS2::reInitializeController(controllerMode);
+}
 
 
 

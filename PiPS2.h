@@ -5,12 +5,18 @@
 #define TOG(x,y) (x^=(1<<y)) 	// Toggle bit y in x
 
 /* Delays */
-#define CLK_DELAY  4
-#define BYTE_DELAY 3
+#define CLK_DELAY  		4
+#define BYTE_DELAY 		3
+#define CMD_DELAY 		1
+#define MAX_READ_DELAY 	10
+
+/* Maximum number of init tries */
+#define MAX_INIT_ATTEMPT 	50
 
 /* Controller Modes - From: http://www.lynxmotion.com/images/files/ps2cmd01.txt */
 #define DIGITALMODE 	0x41
 #define ANALOGMODE 		0x73
+#define ALLPRESSUREMODE	0x79
 #define DS2NATIVEMODE	0xF3
 
 /* Button Masks */
@@ -58,13 +64,15 @@ static unsigned char 	config_AllPressure[]={0x01,0x4F,0x00,0xFF,0xFF,0x03,0x00,0
 class PIPS2 {
 	public:
 		unsigned char initializeController(int _commandPin, int _dataPin, int _clkPin, int _attnPin);
-		unsigned char reInitializeController(void);
+		int reInitializeController(char controllerMode);
+		int reInitializeController();
 		unsigned char transmitByte(char byte);
 		void transmitCmdString(unsigned char *string, int length);
 		void readPS2(void);
 		unsigned char PS2data[21];
 		
 	private:
+		char controllerMode;
 		int commandPin;
 		int dataPin;
 		int attnPin;
