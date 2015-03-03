@@ -70,6 +70,7 @@ class PIPS2 {
 		void transmitCmdString(unsigned char *string, int length);
 		void readPS2(void);
 		unsigned char PS2data[21];
+		void getChangedStates(char *outputChangedStates);
 		
 	private:
 		char controllerMode;
@@ -78,5 +79,6 @@ class PIPS2 {
 		int attnPin;
 		int clkPin;
 		unsigned int readDelay;
-		
+		char btnLastState[2];
+		char btnChangedState[2];
 };

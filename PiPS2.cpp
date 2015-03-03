@@ -191,6 +191,12 @@ void PIPS2::readPS2(void)
 	digitalWrite(attnPin, 1);
 	last_read = millis();
 	   
+	// Detect which buttons have been changed
+	btnChangedState[0] = PS2data[3] ^ btnLastState[0];
+	btnChangedState[1] = PS2data[4] ^ btnLastState[1];
+	// Save the current button states as the last state for next read)
+	btnLastState[0] = PS2data[3];
+	btnLastState[1] = PS2data[4];
 }
 
 // Re-Initialize the I/O pins and set up the controller for the desired mode.
@@ -236,5 +242,14 @@ int PIPS2::reInitializeController()
 	return PIPS2::reInitializeController(controllerMode);
 }
 
-
+// Request the changed states data. To determine what buttons have changed states since last read.
+//
+// Input:
+// 		outputChangedStates 	- The pointer to a two element char vector to hold the changed states.
+//
+void PIPS2::getChangedStates(char *outputChangedStates)
+{
+	outputChangedStates[0] = btnChangedState[0];
+	outputChangedStates[1] = btnChangedState[1];
+}
 
